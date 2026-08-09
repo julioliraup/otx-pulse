@@ -1,0 +1,38 @@
+name: OTX Pulse Dispatch Example
+on:
+  workflow_dispatch:
+
+jobs:
+  publish-pulse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Submit Pulse to OTX
+        # Change 'your-github-username' to your actual GitHub profile name
+        uses: your-github-username/otx-pulse@v1
+        with:
+          otx-api-key: ${{ secrets.OTX_API_KEY }}
+          name: 'Automated Infrastructure IOC Alert'
+          description: 'Production infrastructure pipeline indicator trigger'
+          public: 'false'
+          tlp: 'amber'
+          tags: 'production, automation'
+          references: 'https://example.com'
+          adversary: 'Unknown Scanners'
+          targeted-countries: 'Brazil, United States'
+          industries: 'Technology, Finance'
+          group-ids: '4452, 9811'
+          malware-families: 'Mirai Variant'
+          attack-ids: 'T1046, T1071'
+          indicators: |
+            [
+              {
+                "indicator": "192.0.2.1",
+                "type": "IPv4",
+                "title": "Malicious Scanner IP",
+                "description": "Attacker reconnaissance source",
+                "role": "scanning_host"
+              }
+            ]

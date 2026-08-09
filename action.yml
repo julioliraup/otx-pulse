@@ -1,0 +1,152 @@
+name: 'OTX Pulse'
+description: 'Creates and submits a threat intelligence pulse to AlienVault OTX using strict validation'
+inputs:
+  otx-api-key:
+    description: 'Your OTX API Key (X-OTX-API-KEY header)'
+    required: true
+  name:
+    description: 'Title of the Pulse'
+    required: true
+  description:
+    description: 'Detailed description of the threat'
+    required: false
+    default: ''
+  public:
+    description: 'Make the pulse public (true or false)'
+    required: false
+    default: 'false'
+  tlp:
+    description: 'Traffic Light Protocol level (white, green, amber, red)'
+    required: false
+    default: 'green'
+  tags:
+    description: 'Comma-separated list of tags'
+    required: false
+    default: ''
+  references:
+    description: 'Comma-separated list of reference URLs'
+    required: false
+    default: ''
+  adversary:
+    description: 'Name of the threat actor or adversary group'
+    required: false
+    default: ''
+  targeted-countries:
+    description: 'Comma-separated list of targeted countries'
+    required: false
+    default: ''
+  industries:
+    description: 'Comma-separated list of targeted industries'
+    required: false
+    default: ''
+  group-ids:
+    description: 'Comma-separated list of integer group IDs allowed to view'
+    required: false
+    default: ''
+  malware-families:
+    description: 'Comma-separated list of malware families'
+    required: false
+    default: ''
+  attack-ids:
+    description: 'Comma-separated list of MITRE ATT&CK IDs (e.g., T1003)'
+    required: false
+    default: ''
+  indicators:
+    description: 'Strict JSON array containing threat indicators'
+    required: false
+    default: '[]'
+runs:
+  using: 'composite'
+  steps:
+    - name: Execute Validated Pulse Submission
+      shell: python3 {0}
+      env:
+        INPUT_OTX_API_KEY: ${{ inputs.otx-api-key }}
+        INPUT_NAME: ${{ inputs.name }}
+        INPUT_DESCRIPTION: ${{ inputs.description }}
+        INPUT_PUBLIC: ${{ inputs.public }}
+        INPUT_TLP: ${{ inputs.tlp }}
+        INPUT_TAGS: ${{ inputs.tags }}
+        INPUT_REFERENCES: ${{ inputs.references }}
+        INPUT_ADVERSARY: ${{ inputs.adversary }}
+        INPUT_TARGETED_COUNTRIES: ${{ inputs.targeted-countries }}
+        INPUT_INDUSTRIES: ${{ inputs.industries }}
+        INPUT_GROUP_IDS: ${{ inputs.group-ids }}
+        INPUT_MALWARE_FAMILIES: ${{ inputs.malware-families }}
+        INPUT_ATTACK_IDS: ${{ inputs.attack-ids }}
+        INPUT_INDICATORS: ${{ inputs.indicators }}
+      run: |
+        import os
+        import json
+        import urllib.request
+        import urllib.error
+
+        api_key = os.environ.get("INPUT_OTX_API_KEY")
+        
+        # Helper to parse clean string lists
+        def parse_str_list(env_var):
+            raw = os.environ.get(env_var, "")
+            return [item.strip() for item in raw.split(",") if item.strip()]
+
+        payload = {
+            "name": os.environ.get("INPUT_NAME"),
+            "public": os.environ.get("INPUT_PUBLIC", "false").lower() == "true"
+        }
+
+        # Handle optional string attributes
+        if os.environ.get("INPUT_DESCRIPTION"):
+            payload["description"] = os.environ.get("INPUT_DESCRIPTION")
+        if os.environ.get("INPUT_ADVERSARY"):
+            payload["adversary"] = os.environ.get("INPUT_ADVERSARY")
+        if os.environ.get("INPUT_TLP"):
+            payload["TLP"] = os.environ.get("INPUT_TLP").lower()
+
+        # Handle array strings
+        tags = parse_str_list("INPUT_TAGS")
+        if tags: payload["tags"] = tags
+
+        references = parse_str_list("INPUT_REFERENCES")
+        if references: payload["references"] = references
+
+        targeted_countries = parse_str_list("INPUT_TARGETED_COUNTRIES")
+        if targeted_countries: payload["targeted_countries"] = targeted_countries
+
+        industries = parse_str_list("INPUT_INDUSTRIES")
+        if industries: payload["industries"] = industries
+
+        malware_families = parse_str_list("INPUT_MALWARE_FAMILIES")
+        if malware_families: payload["malware_families"] = malware_families
+
+        attack_ids = parse_str_list("INPUT_ATTACK_IDS")
+        if attack_ids: payload["attack_ids"] = attack_ids
+
+        # Parse integer group arrays safely
+        raw_groups = os.environ.get("INPUT_GROUP_IDS", "")
+        group_ids = []
+        for g in raw_groups.split(","):
+            if g.strip().isdigit():
+                group_ids.append(int(g.strip()))
+        if group_ids:
+            payload["group_ids"] = group_ids
+
+        # Handle compound JSON indicators validation
+        raw_indicators = os.environ.get("INPUT_INDICATORS", "[]")
+        try:
+            payload["indicators"] = json.loads(raw_indicators)
+        except Exception as e:
+            print(f"Warning: Failed to parse indicators JSON: {e}")
+            payload["indicators"] = []
+
+        url = "https://otx.alienvault.com/api/v1/pulses/create"
+        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), method="POST")
+        req.add_header("X-OTX-API-KEY", api_key)
+        req.add_header("Content-Type", "application/json")
+
+        try:
+            with urllib.request.urlopen(req) as response:
+                print(f"Success! HTTP Status: {response.status}")
+                print(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            print(f"API Rejection Error: {e.code} - {e.reason}")
+            print(e.read().decode("utf-8"))
+            exit(1)
