@@ -11,7 +11,7 @@ jobs:
 
       - name: Submit Pulse to OTX
         # Change 'your-github-username' to your actual GitHub profile name
-        uses: your-github-username/otx-pulse@v1
+        uses: julioliraup/otx-pulse@v1
         with:
           otx-api-key: ${{ secrets.OTX_API_KEY }}
           name: 'Automated Infrastructure IOC Alert'
